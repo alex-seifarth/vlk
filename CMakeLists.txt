@@ -7,3 +7,6 @@ project(vlk
 )
 
 add_subdirectory(lib)
+
+enable_testing()
+add_subdirectory(test/utest)
