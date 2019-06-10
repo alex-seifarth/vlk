@@ -2,7 +2,9 @@
 find_package(GTest REQUIRED)
 
 set(SRCS
-    log/test-log.cpp)
+    utility/test-log.cpp
+    utility/test-final.cpp
+)
 
 add_executable(utest "${SRCS}")
 
