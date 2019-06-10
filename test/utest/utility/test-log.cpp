@@ -27,8 +27,8 @@ TEST(log, simple_logging_warn)
     set_global_log_level(log_level::warning);
     VLK_LOG_WARNING() << "log1";
     VLK_LOG_ERROR() << "log2";
-    VLK_LOG_INFO() << "log" << "3";
-    VLK_LOG_DEBUG() << "log " << "debug";
+    VLK_LOG_INFO() << "utility" << "3";
+    VLK_LOG_DEBUG() << "utility " << "debug";
     VLK_LOG_TRACE() << "trace";
     VLK_LOG_FATAL() << "fatal";
 }
