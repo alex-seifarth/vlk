@@ -10,3 +10,4 @@ add_subdirectory(lib)
 
 enable_testing()
 add_subdirectory(test/utest)
+add_subdirectory(test/vlk-app-1)

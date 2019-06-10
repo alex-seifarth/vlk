@@ -9,6 +9,9 @@ pkg_check_modules(glm REQUIRED glm)
 
 set(SRCS
     src/log.cpp
+    src/util.cpp
+    src/vulkan-bindings.cpp
+    src/application.cpp
 )
 
 add_library(vlk SHARED ${SRCS})
