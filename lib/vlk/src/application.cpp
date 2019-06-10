@@ -209,8 +209,6 @@ void application::install_validation_report_cbk()
         if (r != VK_SUCCESS) {
             throw vlk::vulkan_exception{"Unable to register validation layer callback", r};
         }
-        vlk::debugReportMessageEXT(_vk_instance, VK_DEBUG_REPORT_ERROR_BIT_EXT, VK_DEBUG_REPORT_OBJECT_TYPE_UNKNOWN_EXT, 0U, 0U, 1, "xy", "A message");
-
     }
 }
 
