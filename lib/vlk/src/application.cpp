@@ -104,6 +104,10 @@ void application::run()
 
 void application::cleanup_run() noexcept
 {
+    if (VK_NULL_HANDLE != _vk_surface) {
+        vkDestroySurfaceKHR(_vk_instance, _vk_surface, nullptr);
+        _vk_surface = VK_NULL_HANDLE;
+    }
     if (VK_NULL_HANDLE != _vk_dbg_cbk) {
         vlk::destroyDebugReportCallbackEXT(_vk_instance, _vk_dbg_cbk, nullptr);
         _vk_dbg_cbk = VK_NULL_HANDLE;
@@ -123,6 +127,7 @@ void application::init_run()
     create_window();
     create_vk_instance();
     install_validation_report_cbk();
+    create_surface();
 }
 
 void application::create_window()
@@ -254,4 +259,13 @@ void application::vk_debug_report_msg(VkDebugReportFlagsEXT flags,
     }
     vlk::debugReportMessageEXT(_vk_instance, flags, objectType, object, location, messageCode, pLayerPrefix.c_str(),
             pMessage.c_str());
+}
+
+void application::create_surface()
+{
+    auto r = glfwCreateWindowSurface(_vk_instance, _window, nullptr, &_vk_surface);
+    if (VK_SUCCESS != r) {
+        throw vlk::vulkan_exception{"Unable to create window surface", r};
+    }
+    assert(VK_NULL_HANDLE != _vk_surface);
 }

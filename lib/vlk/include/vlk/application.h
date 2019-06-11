@@ -70,6 +70,7 @@ namespace vlk {
         void create_window();
         void create_vk_instance();
         void install_validation_report_cbk();
+        void create_surface();
 
         static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_report_cbk(VkDebugReportFlagsEXT, VkDebugReportObjectTypeEXT,
             uint64_t, size_t, int32_t, const char*, const char*, void*);
@@ -82,6 +83,7 @@ namespace vlk {
         GLFWwindow *_window{nullptr};
         VkInstance _vk_instance{VK_NULL_HANDLE};
         VkDebugReportCallbackEXT _vk_dbg_cbk{VK_NULL_HANDLE};
+        VkSurfaceKHR _vk_surface{VK_NULL_HANDLE};
     };
 
 } // namespace vlk
