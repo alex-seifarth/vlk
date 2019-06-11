@@ -21,6 +21,7 @@
 #include <vlk/exception.h>
 #include <vlk/final.h>
 #include <vlk/log.h>
+#include <vlk/util.h>
 
 #include "vulkan-bindings.h"
 
@@ -51,6 +52,16 @@ namespace {
         }
     }
 
+    void setup_queue_create_info(VkDeviceQueueCreateInfo& qci, uint32_t queue_family_index, uint32_t queue_count, float * priority)
+    {
+        qci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        qci.pNext = nullptr;
+        qci.flags = 0;
+        qci.queueFamilyIndex = queue_family_index;
+        qci.queueCount = queue_count;
+        qci.pQueuePriorities = priority;
+    }
+
 }
 
 using namespace vlk;
@@ -72,9 +83,20 @@ using namespace vlk;
         } \
     } \
     void(0)
+
+#define DBG_PRINT_PHYS_DEVICES(msg, vec, surface) \
+    { \
+        VLK_LOG_DEBUG() << #msg; \
+        for (auto const& pd : vec) { \
+            vlk::log_phys_device(pd, surface, " - "); \
+        }\
+    } \
+    void(0)
+
 #else
 #define DBG_PRINT_GLFW_VERSION()
 #define DBG_PRINT_CHAR_VEC(msg, vec)
+#define DBG_PRINT_PHYS_DEVICES(msg, vec)
 #endif
 
 
@@ -89,7 +111,6 @@ application::application()
 
 application::~application()
 {
-
     glfwTerminate();
 }
 
@@ -104,6 +125,11 @@ void application::run()
 
 void application::cleanup_run() noexcept
 {
+    _vk_queue_gfx = VK_NULL_HANDLE;
+    _vk_queue_pres = VK_NULL_HANDLE;
+    if (VK_NULL_HANDLE != _vk_device) {
+        vkDestroyDevice(_vk_device, nullptr);
+    }
     if (VK_NULL_HANDLE != _vk_surface) {
         vkDestroySurfaceKHR(_vk_instance, _vk_surface, nullptr);
         _vk_surface = VK_NULL_HANDLE;
@@ -128,6 +154,7 @@ void application::init_run()
     create_vk_instance();
     install_validation_report_cbk();
     create_surface();
+    create_device();
 }
 
 void application::create_window()
@@ -158,14 +185,14 @@ void application::create_vk_instance()
         append_char_unique(rexts, VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
     }
     stringvec_2_charvec(rexts, required_extensions);
-    DBG_PRINT_CHAR_VEC("Required Extensions", rexts);
+    DBG_PRINT_CHAR_VEC(Required Extensions, rexts);
 
     std::vector<char const*> rlayr{};
     stringvec_2_charvec(rlayr, required_layers);
     if (_vk_enable_validation) {
         append_char_unique(rlayr, VLK_VK_LAYER_LUNARG_STANDARD_VALIDATION_NAME);
     }
-    DBG_PRINT_CHAR_VEC("Required Layers", rlayr);
+    DBG_PRINT_CHAR_VEC(Required Layers, rlayr);
 
     VkApplicationInfo ai;
     ai.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -268,4 +295,94 @@ void application::create_surface()
         throw vlk::vulkan_exception{"Unable to create window surface", r};
     }
     assert(VK_NULL_HANDLE != _vk_surface);
+}
+
+std::vector<vlk::phys_device> application::get_list_phys_devices()
+{
+    if(VK_NULL_HANDLE == _vk_instance) {
+        throw vlk::app_exception{"Illegal operation - no instance allocated"};
+    }
+
+    uint32_t pd_count{0};
+    vkEnumeratePhysicalDevices(_vk_instance, &pd_count, nullptr);
+    if (0 == pd_count) {
+        return std::vector<vlk::phys_device>{};
+    }
+    std::vector<VkPhysicalDevice> pds{pd_count};
+    vkEnumeratePhysicalDevices(_vk_instance, &pd_count, pds.data());
+
+    std::vector<vlk::phys_device> r{};
+    r.reserve(pd_count);
+    for (auto const& pd : pds) {
+        r.emplace_back(pd);
+    }
+    return r;
+}
+
+void application::create_device()
+{
+    auto avail_phys_devs = get_list_phys_devices();
+    DBG_PRINT_PHYS_DEVICES(Available Physical Devices, avail_phys_devs, _vk_surface);
+    auto selected = det_physical_device_queue(avail_phys_devs, _vk_surface);
+    if (VK_NULL_HANDLE == selected.device) {
+        throw app_exception{"no physical device selected"};
+    }
+    if (VLK_INVALID_QF_IDX == selected.qfi_graphics || VLK_INVALID_QF_IDX == selected.qfi_presentation) {
+        throw app_exception{"no queue family for GFX or presentation found"};
+    }
+
+    bool single_queue{selected.qfi_presentation == selected.qfi_graphics};
+    float prio_gfx_queue = 1.0f;
+    float prio_pres_queue = 1.0f;
+    std::vector<VkDeviceQueueCreateInfo> qci{single_queue ? 1U : 2U};
+    setup_queue_create_info(qci[0], selected.qfi_graphics, 1, &prio_gfx_queue);
+    if (!single_queue) {
+        setup_queue_create_info(qci[1], selected.qfi_presentation, 1, &prio_pres_queue);
+    }
+
+    VkDeviceCreateInfo ci;
+    ci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    ci.pNext = nullptr;
+    ci.pEnabledFeatures = &selected.features;
+    ci.flags = 0;
+    ci.enabledLayerCount = 0;
+    ci.enabledExtensionCount = 0;
+    ci.queueCreateInfoCount = qci.size();
+    ci.pQueueCreateInfos = qci.data();
+
+    auto r = vkCreateDevice(selected.device, &ci, nullptr, &_vk_device);
+    if (VK_SUCCESS != r) {
+        throw vlk::vulkan_exception{"Unable to create logical device", r};
+    }
+    _phys_dev_selected = selected;
+    vkGetDeviceQueue(_vk_device, _phys_dev_selected.qfi_graphics, 0, &_vk_queue_gfx);
+    vkGetDeviceQueue(_vk_device, _phys_dev_selected.qfi_presentation, 0, &_vk_queue_pres);
+    if (VK_NULL_HANDLE == _vk_queue_pres || _vk_queue_gfx == VK_NULL_HANDLE) {
+        throw vlk::vulkan_exception{"Failed to get queue handles", VK_RESULT_MAX_ENUM};
+    }
+}
+
+vlk::phys_device_selection application::det_physical_device_queue(std::vector<vlk::phys_device> const& available_devices,
+        VkSurfaceKHR surface)
+{
+    // default selection simply searches for the first possible device and queue families for GFX and presentation
+    for (auto const& pd : available_devices) {
+        vlk::phys_device_selection pds{};
+        pds.device = pd.device;
+
+        uint32_t qfidx{0};
+        for (auto const &qfp : pd.queue_family_properties) {
+            if (VLK_INVALID_QF_IDX == pds.qfi_graphics && (0 != (qfp.queueFlags & VK_QUEUE_GRAPHICS_BIT))) {
+                pds.qfi_graphics = qfidx;
+            }
+            if (VLK_INVALID_QF_IDX == pds.qfi_presentation && pd.can_present_on_surface(qfidx, surface)) {
+                pds.qfi_presentation = qfidx;
+            }
+            if (VLK_INVALID_QF_IDX != pds.qfi_graphics && VLK_INVALID_QF_IDX != pds.qfi_presentation) {
+                return pds;
+            }
+            ++qfidx;
+        }
+    }
+    return vlk::phys_device_selection{};  // nothing selected -> will throw in create_device
 }

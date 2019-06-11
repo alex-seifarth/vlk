@@ -20,6 +20,8 @@
 #pragma once
 
 #include <vlk/export.h>
+#include <vlk/phys_device.h>
+
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 
@@ -54,6 +56,10 @@ namespace vlk {
     protected:
         virtual void det_instance_requirements(std::vector<std::string>& required_extensions,
                                                std::vector<std::string>& required_layers);
+
+        virtual phys_device_selection det_physical_device_queue(std::vector<vlk::phys_device> const& available_devices,
+                VkSurfaceKHR surface);
+
         virtual void on_vk_debug_msg(VkDebugReportFlagsEXT flags,
                 VkDebugReportObjectTypeEXT object_type,
                 uint64_t object,
@@ -71,9 +77,12 @@ namespace vlk {
         void create_vk_instance();
         void install_validation_report_cbk();
         void create_surface();
+        void create_device();
 
         static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_report_cbk(VkDebugReportFlagsEXT, VkDebugReportObjectTypeEXT,
             uint64_t, size_t, int32_t, const char*, const char*, void*);
+
+        std::vector<vlk::phys_device> get_list_phys_devices();
 
 
         bool _vk_enable_validation{true};
@@ -84,6 +93,12 @@ namespace vlk {
         VkInstance _vk_instance{VK_NULL_HANDLE};
         VkDebugReportCallbackEXT _vk_dbg_cbk{VK_NULL_HANDLE};
         VkSurfaceKHR _vk_surface{VK_NULL_HANDLE};
+        vlk::phys_device_selection _phys_dev_selected{};
+        VkDevice _vk_device{VK_NULL_HANDLE};
+        VkQueue _vk_queue_gfx{VK_NULL_HANDLE};
+        VkQueue _vk_queue_pres{VK_NULL_HANDLE};
+
+
     };
 
 } // namespace vlk

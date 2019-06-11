@@ -17,22 +17,33 @@
 //          Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 //
 // ================================================================================================
-#pragma once
-
-#include <vlk/export.h>
 #include <vlk/phys_device.h>
+#include <cassert>
 
-#include <vulkan/vulkan.h>
-#include <string>
 
-namespace vlk {
+using namespace vlk;
 
-    //! Translate VkResult enumeration values to string.
-    std::string VLK_EXPORT to_string(VkResult r);
+phys_device::phys_device(VkPhysicalDevice dev)
+    : device{dev}
+    , properties{}
+    , features{}
+    , queue_family_properties{}
+{
+    assert(VK_NULL_HANDLE != device);
 
-    //! Translate VkPhyiscalDeviceType value to string.
-    std::string VLK_EXPORT to_string(VkPhysicalDeviceType dt);
+    vkGetPhysicalDeviceProperties(device, &properties);
+    vkGetPhysicalDeviceFeatures(device, &features);
 
-    void VLK_EXPORT log_phys_device(vlk::phys_device const& pd, VkSurfaceKHR surface, std::string const& prefix = {});
+    uint32_t qf_count{0};
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &qf_count, nullptr);
+    queue_family_properties.resize(qf_count);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &qf_count, queue_family_properties.data());
+}
 
-} // namespace vlk
+bool phys_device::can_present_on_surface(uint32_t queue_family_idx, VkSurfaceKHR surface) const
+{
+    assert(queue_family_idx < queue_family_properties.size());
+    VkBool32 present{VK_FALSE};
+    vkGetPhysicalDeviceSurfaceSupportKHR(device, queue_family_idx, surface, &present);
+    return present != VK_FALSE;
+}

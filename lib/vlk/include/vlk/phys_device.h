@@ -20,19 +20,35 @@
 #pragma once
 
 #include <vlk/export.h>
-#include <vlk/phys_device.h>
-
 #include <vulkan/vulkan.h>
-#include <string>
+
+#include <cstdint>
+#include <limits>
+#include <utility>
+#include <vector>
+
+#define VLK_INVALID_QF_IDX          (std::numeric_limits<uint32_t>::max())
 
 namespace vlk {
 
-    //! Translate VkResult enumeration values to string.
-    std::string VLK_EXPORT to_string(VkResult r);
+    struct VLK_EXPORT phys_device
+    {
+        explicit phys_device(VkPhysicalDevice dev);
 
-    //! Translate VkPhyiscalDeviceType value to string.
-    std::string VLK_EXPORT to_string(VkPhysicalDeviceType dt);
+        VkPhysicalDevice device;
+        VkPhysicalDeviceProperties properties;
+        VkPhysicalDeviceFeatures features;
+        std::vector<VkQueueFamilyProperties> queue_family_properties;
 
-    void VLK_EXPORT log_phys_device(vlk::phys_device const& pd, VkSurfaceKHR surface, std::string const& prefix = {});
+        bool can_present_on_surface(uint32_t queue_family_idx, VkSurfaceKHR surface) const;
+    };
+
+    struct VLK_EXPORT phys_device_selection
+    {
+        VkPhysicalDevice device{VK_NULL_HANDLE};
+        VkPhysicalDeviceFeatures features{};
+        uint32_t qfi_graphics{VLK_INVALID_QF_IDX};
+        uint32_t qfi_presentation{VLK_INVALID_QF_IDX};
+    };
 
 } // namespace vlk
