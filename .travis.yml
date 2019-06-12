@@ -1,0 +1,55 @@
+language: cpp
+os: linux
+dist: xenial
+
+git:
+  depth: 2
+  quiet: true
+
+matrix:
+  include:
+    - os: linux
+      env: COMPILER_NAME=gcc CXX=g++-7 CC=gcc-7
+      addons:
+        apt:
+          packages:
+            - g++-7
+          sources:
+            - ubuntu-toolchain-r-test
+
+compiler:
+  - gcc
+
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y libassimp-dev libx11-xcb-dev libxrandr-dev libxinerama-dev libglfw3-dev libboost-all-dev unzip xorg-dev
+
+install:
+  - wget -qO - http://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
+  - sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.1.106-xenial.list http://packages.lunarg.com/vulkan/1.1.106/lunarg-vulkan-1.1.106-xenial.list
+  - sudo apt update
+  - sudo apt install vulkan-sdk
+  - wget https://github.com/g-truc/glm/releases/download/0.9.9.5/glm-0.9.9.5.zip
+  - unzip glm-0.9.9.5.zip
+  - pushd glm && mkdir build && cd build && cmake -DGLM_TEST_ENABLE=OFF .. && make && sudo make install && popd
+  - git clone --depth 1 https://github.com/google/googletest
+  - mkdir -p googletest/build
+  - pushd googletest/build && cmake -DINSTALL_GTEST=ON .. && make && sudo make install && popd
+  - git clone --depth 1 https://github.com/glfw/glfw.git
+  - mkdir -p glfw/build
+  - pushd glfw/build && cmake .. && make && sudo make install && popd
+
+script:
+  - export CXX=g++-7
+  - mkdir build
+  - cd build
+  - cmake ..
+  - make
+  - ctest
+
+notifications:
+  email:
+    recipients:
+      - seifarth@titnc.de
+    on_success: change
+on_failure: always

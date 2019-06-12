@@ -2,10 +2,8 @@ include(GenerateExportHeader)
 
 find_package(Vulkan REQUIRED)
 find_package(glfw3 3 REQUIRED)
-find_package(Boost 1.62 REQUIRED COMPONENTS log)
-
-find_package(PkgConfig)
-pkg_check_modules(glm REQUIRED glm)
+find_package(Boost 1.58 REQUIRED COMPONENTS log)
+find_package(glm REQUIRED)
 
 set(SRCS
     src/log.cpp
