@@ -18,6 +18,7 @@
 //
 // ================================================================================================
 #include <vlk/util.h>
+#include <vlk/log.h>
 
 using namespace vlk;
 
@@ -75,4 +76,22 @@ std::string vlk::to_string(VkPhysicalDeviceType dt)
             break;
     }
     return std::to_string(static_cast<int>(dt));
+}
+
+void vlk::log_phys_device(vlk::phys_device const& pd, VkSurfaceKHR surface, std::string const& prefix)
+{
+    VLK_LOG_DEBUG() << prefix << pd.properties.deviceName << " (" << pd.device << ") "
+                    << to_string(pd.properties.deviceType);
+    uint32_t qf_idx{0};
+    for (auto const& qfp : pd.queue_family_properties) {
+        VLK_LOG_DEBUG() << "  " << prefix << "queue-family #" << qf_idx
+            << " count = " << qfp.queueCount
+            << " GFX: " << (0 != (qfp.queueFlags & VK_QUEUE_GRAPHICS_BIT))
+            << " CMP: " << (0 != (qfp.queueFlags & VK_QUEUE_COMPUTE_BIT))
+            << " TRA: " << (0 != (qfp.queueFlags & VK_QUEUE_TRANSFER_BIT))
+            << " SPA: " << (0 != (qfp.queueFlags & VK_QUEUE_SPARSE_BINDING_BIT))
+            << " PRO: " << (0 != (qfp.queueFlags & VK_QUEUE_PROTECTED_BIT))
+            << " Present: " << pd.can_present_on_surface(qf_idx, surface);
+        ++qf_idx;
+    }
 }

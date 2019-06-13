@@ -10,6 +10,7 @@ set(SRCS
     src/util.cpp
     src/vulkan-bindings.cpp
     src/application.cpp
+    src/phys_device.cpp
 )
 
 add_library(vlk SHARED ${SRCS})
