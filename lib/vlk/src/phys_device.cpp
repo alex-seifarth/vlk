@@ -28,6 +28,7 @@ phys_device::phys_device(VkPhysicalDevice dev)
     , properties{}
     , features{}
     , queue_family_properties{}
+    , extensions{}
 {
     assert(VK_NULL_HANDLE != device);
 
@@ -38,6 +39,11 @@ phys_device::phys_device(VkPhysicalDevice dev)
     vkGetPhysicalDeviceQueueFamilyProperties(device, &qf_count, nullptr);
     queue_family_properties.resize(qf_count);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &qf_count, queue_family_properties.data());
+
+    uint32_t extension_count{0};
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extension_count, nullptr);
+    extensions.resize(extension_count);
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extension_count, extensions.data());
 }
 
 bool phys_device::can_present_on_surface(uint32_t queue_family_idx, VkSurfaceKHR surface) const
@@ -47,3 +53,14 @@ bool phys_device::can_present_on_surface(uint32_t queue_family_idx, VkSurfaceKHR
     vkGetPhysicalDeviceSurfaceSupportKHR(device, queue_family_idx, surface, &present);
     return present != VK_FALSE;
 }
+
+bool phys_device::supports_extension(std::string const& extension_name) const
+{
+    for (auto const& ext : extensions) {
+        if (extension_name == ext.extensionName) {
+            return true;
+        }
+    }
+    return false;
+}
+

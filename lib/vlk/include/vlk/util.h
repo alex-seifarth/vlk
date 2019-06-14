@@ -23,6 +23,7 @@
 #include <vlk/phys_device.h>
 
 #include <vulkan/vulkan.h>
+#include <cassert>
 #include <string>
 
 namespace vlk {
@@ -33,6 +34,23 @@ namespace vlk {
     //! Translate VkPhyiscalDeviceType value to string.
     std::string VLK_EXPORT to_string(VkPhysicalDeviceType dt);
 
+    std::string VLK_EXPORT to_string(VkFormat f);
+    std::string VLK_EXPORT to_string(VkColorSpaceKHR cs);
+    std::string VLK_EXPORT to_string(VkPresentModeKHR pm);
+
+    //! Logs the properties of a physical device from VULKAN.
     void VLK_EXPORT log_phys_device(vlk::phys_device const& pd, VkSurfaceKHR surface, std::string const& prefix = {});
+
+    void VLK_EXPORT log(vlk::swap_properties_selection const& sps, std::string const& prefix = {});
+
+    //! returns value clamped to range [limit_low, limit_high]
+    template<typename Tp>
+    inline Tp const& clamp_range(Tp const& value, Tp const& limit_low, Tp const& limit_high)
+    {
+        assert(limit_low <= limit_high);
+        if (value < limit_low) return limit_low;
+        if (value > limit_high) return limit_high;
+        return value;
+    }
 
 } // namespace vlk

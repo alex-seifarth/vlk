@@ -24,6 +24,7 @@
 
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
+#include <glm/vec2.hpp>
 
 #include <string>
 #include <vector>
@@ -60,6 +61,11 @@ namespace vlk {
         virtual phys_device_selection det_physical_device_queue(std::vector<vlk::phys_device> const& available_devices,
                 VkSurfaceKHR surface);
 
+        virtual swap_properties_selection det_swap_chain_properties(VkSurfaceCapabilitiesKHR const& capabilities,
+                                                                    std::vector<VkSurfaceFormatKHR> const& surface_formats,
+                                                                    std::vector<VkPresentModeKHR> const& surface_present_modes,
+                                                                    glm::uvec2 window_size);
+
         virtual void on_vk_debug_msg(VkDebugReportFlagsEXT flags,
                 VkDebugReportObjectTypeEXT object_type,
                 uint64_t object,
@@ -78,6 +84,7 @@ namespace vlk {
         void install_validation_report_cbk();
         void create_surface();
         void create_device();
+        void create_swap_chain();
 
         static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_report_cbk(VkDebugReportFlagsEXT, VkDebugReportObjectTypeEXT,
             uint64_t, size_t, int32_t, const char*, const char*, void*);
@@ -97,6 +104,7 @@ namespace vlk {
         VkDevice _vk_device{VK_NULL_HANDLE};
         VkQueue _vk_queue_gfx{VK_NULL_HANDLE};
         VkQueue _vk_queue_pres{VK_NULL_HANDLE};
+        VkSwapchainKHR  _vk_swap_chain{VK_NULL_HANDLE};
 
 
     };
