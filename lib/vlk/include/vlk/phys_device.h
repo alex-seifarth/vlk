@@ -24,10 +24,12 @@
 
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <utility>
 #include <vector>
 
 #define VLK_INVALID_QF_IDX          (std::numeric_limits<uint32_t>::max())
+#define VLK_WIDTH_RESERVED          (std::numeric_limits<uint32_t>::max())
 
 namespace vlk {
 
@@ -39,8 +41,10 @@ namespace vlk {
         VkPhysicalDeviceProperties properties;
         VkPhysicalDeviceFeatures features;
         std::vector<VkQueueFamilyProperties> queue_family_properties;
+        std::vector<VkExtensionProperties> extensions;
 
         bool can_present_on_surface(uint32_t queue_family_idx, VkSurfaceKHR surface) const;
+        bool supports_extension(std::string const& extension_name) const;
     };
 
     struct VLK_EXPORT phys_device_selection
@@ -49,6 +53,17 @@ namespace vlk {
         VkPhysicalDeviceFeatures features{};
         uint32_t qfi_graphics{VLK_INVALID_QF_IDX};
         uint32_t qfi_presentation{VLK_INVALID_QF_IDX};
+        std::vector<std::string> required_extensions{};
+    };
+
+    struct VLK_EXPORT swap_properties_selection
+    {
+        VkSurfaceFormatKHR surface_format{VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+        VkPresentModeKHR present_mode{VK_PRESENT_MODE_FIFO_KHR};
+        VkExtent2D extend{};
+        uint32_t image_count{0};
+        VkSurfaceTransformFlagBitsKHR pre_transform{VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR};
+        VkCompositeAlphaFlagBitsKHR composite_alpha{VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR};
     };
 
 } // namespace vlk

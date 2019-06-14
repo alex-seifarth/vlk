@@ -17,6 +17,8 @@
 //          Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 //
 // ================================================================================================
+#include "dbg_print.h"
+
 #include <vlk/application.h>
 #include <vlk/exception.h>
 #include <vlk/final.h>
@@ -66,41 +68,6 @@ namespace {
 
 using namespace vlk;
 
-#ifndef NDEBUG
-#define DBG_PRINT_GLFW_VERSION() \
-    { \
-        int mjr, mnr, rev; \
-        glfwGetVersion(&mjr, &mnr, &rev); \
-        VLK_LOG_DEBUG() << "Initialised GLFW " << mjr << "." << mnr << "." << rev; \
-    } \
-    void(0)
-
-#define DBG_PRINT_CHAR_VEC(msg, vec) \
-    { \
-        VLK_LOG_DEBUG() << #msg; \
-        for (auto const& s : vec) { \
-            VLK_LOG_DEBUG() << "  - " << s; \
-        } \
-    } \
-    void(0)
-
-#define DBG_PRINT_PHYS_DEVICES(msg, vec, surface) \
-    { \
-        VLK_LOG_DEBUG() << #msg; \
-        for (auto const& pd : vec) { \
-            vlk::log_phys_device(pd, surface, " - "); \
-        }\
-    } \
-    void(0)
-
-#else
-#define DBG_PRINT_GLFW_VERSION()
-#define DBG_PRINT_CHAR_VEC(msg, vec)
-#define DBG_PRINT_PHYS_DEVICES(msg, vec)
-#endif
-
-
-
 application::application()
 {
     if (GLFW_TRUE != glfwInit()) {
@@ -125,6 +92,10 @@ void application::run()
 
 void application::cleanup_run() noexcept
 {
+    if (VK_NULL_HANDLE != _vk_swap_chain) {
+       vkDestroySwapchainKHR(_vk_device, _vk_swap_chain, nullptr);
+       _vk_swap_chain = VK_NULL_HANDLE;
+    }
     _vk_queue_gfx = VK_NULL_HANDLE;
     _vk_queue_pres = VK_NULL_HANDLE;
     if (VK_NULL_HANDLE != _vk_device) {
@@ -155,6 +126,7 @@ void application::init_run()
     install_validation_report_cbk();
     create_surface();
     create_device();
+    create_swap_chain();
 }
 
 void application::create_window()
@@ -340,13 +312,19 @@ void application::create_device()
         setup_queue_create_info(qci[1], selected.qfi_presentation, 1, &prio_pres_queue);
     }
 
+    std::vector<char const*> required_extensions{};
+    std::transform(selected.required_extensions.cbegin(), selected.required_extensions.cend(),
+            std::back_inserter(required_extensions), [](std::string const& str) -> const char* {return str.c_str();});
+    DBG_PRINT_DEVICE_EXTENSIONS(Device Extensions, required_extensions);
+
     VkDeviceCreateInfo ci;
     ci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     ci.pNext = nullptr;
     ci.pEnabledFeatures = &selected.features;
     ci.flags = 0;
     ci.enabledLayerCount = 0;
-    ci.enabledExtensionCount = 0;
+    ci.enabledExtensionCount = static_cast<uint32_t>(required_extensions.size());
+    ci.ppEnabledExtensionNames = required_extensions.data();
     ci.queueCreateInfoCount = qci.size();
     ci.pQueueCreateInfos = qci.data();
 
@@ -370,6 +348,11 @@ vlk::phys_device_selection application::det_physical_device_queue(std::vector<vl
         vlk::phys_device_selection pds{};
         pds.device = pd.device;
 
+        if (!pd.supports_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)) {
+            break;
+        }
+        pds.required_extensions.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+
         uint32_t qfidx{0};
         for (auto const &qfp : pd.queue_family_properties) {
             if (VLK_INVALID_QF_IDX == pds.qfi_graphics && (0 != (qfp.queueFlags & VK_QUEUE_GRAPHICS_BIT))) {
@@ -385,4 +368,142 @@ vlk::phys_device_selection application::det_physical_device_queue(std::vector<vl
         }
     }
     return vlk::phys_device_selection{};  // nothing selected -> will throw in create_device
+}
+
+void application::create_swap_chain()
+{
+    VkSurfaceCapabilitiesKHR surface_caps{};
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_phys_dev_selected.device, _vk_surface, &surface_caps);
+
+    std::vector<VkSurfaceFormatKHR> surface_formats{};
+    uint32_t surface_formats_count{0};
+    vkGetPhysicalDeviceSurfaceFormatsKHR(_phys_dev_selected.device, _vk_surface, &surface_formats_count, nullptr);
+    if (surface_formats_count > 0) {
+        surface_formats.resize(surface_formats_count);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(_phys_dev_selected.device, _vk_surface, &surface_formats_count, surface_formats.data());
+    }
+    if (surface_formats.empty()) {
+        throw vlk::vulkan_exception{"No supported surface format found", VK_RESULT_MAX_ENUM};
+    }
+
+    std::vector<VkPresentModeKHR> surface_modes{};
+    uint32_t surface_mode_count{0};
+    vkGetPhysicalDeviceSurfacePresentModesKHR(_phys_dev_selected.device, _vk_surface, &surface_mode_count, nullptr);
+    if (surface_mode_count > 0) {
+        surface_modes.resize(surface_mode_count);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(_phys_dev_selected.device, _vk_surface, &surface_mode_count, surface_modes.data());
+    }
+    if (surface_modes.empty()) {
+        throw vlk::vulkan_exception{"No supported presentation mode found", VK_RESULT_MAX_ENUM};
+    }
+
+    int w,h;
+    glfwGetWindowSize(_window, &w, &h);
+    auto sps = det_swap_chain_properties(surface_caps, surface_formats, surface_modes, glm::uvec2{w,h});
+
+    VkSwapchainCreateInfoKHR ci{};
+    ci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    ci.pNext = nullptr;
+    ci.flags = 0;
+    ci.surface = _vk_surface;
+    ci.minImageCount = sps.image_count;
+    ci.imageFormat = sps.surface_format.format;
+    ci.imageColorSpace = sps.surface_format.colorSpace;
+    ci.imageExtent = sps.extend;
+    ci.imageArrayLayers = 1U;
+    ci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    ci.presentMode = sps.present_mode;
+    ci.clipped = VK_TRUE;
+    ci.oldSwapchain = VK_NULL_HANDLE;
+    ci.preTransform = sps.pre_transform;
+    ci.compositeAlpha = sps.composite_alpha;
+
+    std::vector<uint32_t> qf_indices;
+    if (_phys_dev_selected.qfi_graphics == _phys_dev_selected.qfi_presentation) {
+        ci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        ci.queueFamilyIndexCount = 0;
+        ci.pQueueFamilyIndices = nullptr;
+    }
+    else {
+        qf_indices.push_back(_phys_dev_selected.qfi_graphics);
+        qf_indices.push_back(_phys_dev_selected.qfi_presentation);
+        ci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        ci.queueFamilyIndexCount = qf_indices.size();
+        ci.pQueueFamilyIndices = qf_indices.data();
+    }
+
+    auto r = vkCreateSwapchainKHR(_vk_device, &ci, nullptr, &_vk_swap_chain);
+    if (VK_SUCCESS != r) {
+        throw vlk::vulkan_exception{"unable to create swap-chain", r};
+    }
+    DBG_PRINT_SWAP_CHAIN_PROPERTIES(Swap Chain Properties:, sps);
+}
+
+swap_properties_selection application::det_swap_chain_properties(VkSurfaceCapabilitiesKHR const& capabilities,
+                                                    std::vector<VkSurfaceFormatKHR> const& surface_formats,
+                                                    std::vector<VkPresentModeKHR> const& surface_present_modes,
+                                                    glm::uvec2 window_size)
+{
+    swap_properties_selection sps;
+
+    // 1. surface format determination
+    assert(!surface_formats.empty());
+    if (surface_formats.size() == 1 && surface_formats[0].format == VK_FORMAT_UNDEFINED) {
+        // we're free to choose what we want in this case
+        sps.surface_format = {VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+    }
+    else {
+        bool found{false};
+        for (auto const& sf : surface_formats) {
+            if (sf.format == VK_FORMAT_B8G8R8A8_UNORM && sf.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+                sps.surface_format = sf;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            // actually no other idea as to return the first position
+            sps.surface_format = surface_formats[0];
+        }
+    }
+
+    // 2. presentation mode determination
+    assert(!surface_present_modes.empty());
+    sps.present_mode = VK_PRESENT_MODE_MAX_ENUM_KHR;
+    for (auto const& pm : surface_present_modes) {
+        if (pm == VK_PRESENT_MODE_MAILBOX_KHR) {
+            sps.present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
+            break;
+        }
+        else if (pm == VK_PRESENT_MODE_FIFO_KHR) {
+            sps.present_mode = VK_PRESENT_MODE_FIFO_KHR;
+            // go on with search - maybe find a better one
+        }
+    }
+    if (sps.present_mode == VK_PRESENT_MODE_MAX_ENUM_KHR) {
+        throw vlk::vulkan_exception{"no suitable presentation mode - not even FIFO", VK_RESULT_MAX_ENUM};
+    }
+
+    // 3. swap extent determination
+    if (capabilities.currentExtent.width == VLK_WIDTH_RESERVED) {
+        // special value means: DON'T CHANGE WIDTH/HEIGHT value because the window manager doesn't like it
+        sps.extend = capabilities.currentExtent;
+    }
+    else {
+        sps.extend.width = clamp_range(window_size.x, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+        sps.extend.height = clamp_range(window_size.y, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+    }
+
+    // 4. image count determination
+    sps.image_count = capabilities.minImageCount + 1;
+    if (capabilities.maxImageCount > 0 && sps.image_count > capabilities.maxImageCount) {
+        // maxImageCount == 0 means: no upper limit
+        sps.image_count = capabilities.maxImageCount;
+    }
+
+    // 5. pre-transform, composite-alpha
+    sps.pre_transform = capabilities.currentTransform;
+    sps.composite_alpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+
+    return sps;
 }
