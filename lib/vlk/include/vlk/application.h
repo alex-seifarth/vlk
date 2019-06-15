@@ -85,6 +85,7 @@ namespace vlk {
         void create_surface();
         void create_device();
         void create_swap_chain();
+        void create_image_views();
 
         static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_report_cbk(VkDebugReportFlagsEXT, VkDebugReportObjectTypeEXT,
             uint64_t, size_t, int32_t, const char*, const char*, void*);
@@ -97,14 +98,21 @@ namespace vlk {
         uint32_t _window_width{800U};
         uint32_t _window_height{600U};
         GLFWwindow *_window{nullptr};
+
         VkInstance _vk_instance{VK_NULL_HANDLE};
         VkDebugReportCallbackEXT _vk_dbg_cbk{VK_NULL_HANDLE};
         VkSurfaceKHR _vk_surface{VK_NULL_HANDLE};
+
         vlk::phys_device_selection _phys_dev_selected{};
         VkDevice _vk_device{VK_NULL_HANDLE};
         VkQueue _vk_queue_gfx{VK_NULL_HANDLE};
         VkQueue _vk_queue_pres{VK_NULL_HANDLE};
+
         VkSwapchainKHR  _vk_swap_chain{VK_NULL_HANDLE};
+        std::vector<VkImage> _vk_swap_chain_images{};
+        VkSurfaceFormatKHR _vk_surface_format{};
+        VkExtent2D _vk_surface_extent{};
+        std::vector<VkImageView> _vk_swap_chain_img_views{};
 
 
     };
