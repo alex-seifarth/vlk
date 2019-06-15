@@ -92,6 +92,11 @@ void application::run()
 
 void application::cleanup_run() noexcept
 {
+    for (auto const& iv : _vk_swap_chain_img_views) {
+        vkDestroyImageView(_vk_device, iv, nullptr);
+    }
+    _vk_swap_chain_img_views.clear();
+    _vk_swap_chain_images.clear();
     if (VK_NULL_HANDLE != _vk_swap_chain) {
        vkDestroySwapchainKHR(_vk_device, _vk_swap_chain, nullptr);
        _vk_swap_chain = VK_NULL_HANDLE;
@@ -127,6 +132,7 @@ void application::init_run()
     create_surface();
     create_device();
     create_swap_chain();
+    create_image_views();
 }
 
 void application::create_window()
@@ -437,6 +443,13 @@ void application::create_swap_chain()
         throw vlk::vulkan_exception{"unable to create swap-chain", r};
     }
     DBG_PRINT_SWAP_CHAIN_PROPERTIES(Swap Chain Properties:, sps);
+
+    uint32_t img_count{0};
+    vkGetSwapchainImagesKHR(_vk_device, _vk_swap_chain, &img_count, nullptr);
+    _vk_swap_chain_images.resize(img_count);
+    vkGetSwapchainImagesKHR(_vk_device, _vk_swap_chain, &img_count, _vk_swap_chain_images.data());
+    _vk_surface_format = sps.surface_format;
+    _vk_surface_extent = sps.extend;
 }
 
 swap_properties_selection application::det_swap_chain_properties(VkSurfaceCapabilitiesKHR const& capabilities,
@@ -506,4 +519,35 @@ swap_properties_selection application::det_swap_chain_properties(VkSurfaceCapabi
     sps.composite_alpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 
     return sps;
+}
+
+void application::create_image_views()
+{
+    _vk_swap_chain_img_views.reserve(_vk_swap_chain_images.size());
+    VkImageView img_view;
+    for (auto const& img : _vk_swap_chain_images) {
+        VkImageViewCreateInfo ci{};
+        ci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        ci.pNext = nullptr;
+        ci.flags = 0;
+        ci.image = img;
+        ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        ci.format = _vk_surface_format.format;
+        ci.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        ci.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        ci.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        ci.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+        ci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        ci.subresourceRange.baseMipLevel = 0U;
+        ci.subresourceRange.levelCount = 1U;
+        ci.subresourceRange.baseArrayLayer = 0U;
+        ci.subresourceRange.layerCount = 1U;
+
+        auto r = vkCreateImageView(_vk_device, &ci, nullptr, &img_view);
+        if (VK_SUCCESS != r) {
+            throw vlk::vulkan_exception{"unable to create image view", r};
+        }
+        _vk_swap_chain_img_views.push_back(img_view);
+    }
+    VLK_LOG_DEBUG() << "Created swap chain image views: " << _vk_swap_chain_img_views.size();
 }
